@@ -1,88 +1,163 @@
-#include <cstdio>
-#include <cstdlib>
-#include <string>
-#include <map>
-#include <fstream>
-#include <algorithm>
+#include <iostream>
+#include <stdlib.h>
 
-std::string getErrorMessage(int code)
+using namespace std;
+
+#define MAX_SIZE 200
+
+bool islatin(char c)
 {
-	switch(code)
-	{
-		case 0:
-			return "Так и должно быть";
-		case -1:
-			return "Для запуска программы введите команду ./quest.bin [входной файл] [выхдной файл]";
-		case -2:
-			return "Не удается получить доступ к файлу с входными данными";
-		case -3:
-			return "Не удается получить доступ к файлу для вывода результата";
-		default:
-			return "Неизвестная ошибка";
-	}
+	return (('A' <= c) && (c <= 'z'));
 }
 
-struct less_second {
-    typedef std::pair<std::string, int> type;
-    bool operator ()(type const& a, type const& b) const {
-        return a.second > b.second;
-    }
-};
-
-int main(int argc, char** argv)
+char toLower(char c)
 {
-	std::setlocale(LC_ALL, "Russian");
-	if(argc != 3)
-	{
-		printf("%s\n", getErrorMessage(-1).c_str());
-		return -1;
-	}
+	if (('A' <= c) && (c <= 'Z')) c += ('a'-'A');
+	return c;
+}
 
-	std::ifstream fInput;
-	fInput.open(argv[1]);
-	if(!fInput)
-	{
-		printf("%s\n", getErrorMessage(-2).c_str());
-		return -2;
-	}
+int index(char c)
+{
+	return toLower(c) - 'a';
+}
 
-	std::ofstream fOutput;
-	fOutput.open(argv[2]);
-	if(!fOutput)
-	{
-		printf("%s\n", getErrorMessage(-3).c_str());
-		return -3;
-	}
+char letter(int i)
+{
+	return (char)i + 'a';
+}
 
-	std::map <std::string, int> *counters = new std::map <std::string, int>();
-	std::map<std::string, int>::iterator i;
-	std::string word;
-	while(fInput >> word)
+class MyList
+{
+public:
+	MyList(){ begin = new wordCount(); };
+	void insert(const int& count, const char* word)
 	{
-		std::transform(word.begin(), word.end(), word.begin(), ::tolower);
-		word.erase(std::remove_if(word.begin(), word.end(), [](char c) {return !std::isalpha(c);}), word.end());
-		i = counters->find(word);
-		if(i == counters->end())
+		wordCount *record = new wordCount();
+		record->count = count;
+		int l = 0;
+		const char *q = word;
+		while (*q++) ++l;
+		q = word;
+		record->word = new char[l];
+		char *p = record->word;
+		while (*p++ = *q++);
+		_insert(begin, record);
+	}
+	void printList()
+	{
+		wordCount* current = begin->next;
+		while (current != NULL)
 		{
-			counters->insert({word, 1});
+			cout << current->word << " " << current->count << endl;
+			current = current->next;
+		}
+	}
+private:
+	struct wordCount
+	{
+		char *word;
+		int count;
+		wordCount *next;
+		wordCount() :word(NULL), count(0), next(NULL){};
+	};
+	void _insert(wordCount* list, wordCount* record)
+	{
+		if (list->next == NULL)
+		{
+			list->next = record;
+		}
+		else if (list->next->count >= record->count)
+		{
+			_insert(list->next, record);
 		}
 		else
 		{
-			++i->second;
+			record->next = list->next;
+			list->next = record;
 		}
-	}	
-	fInput.close();
-
-	std::vector<std::pair<std::string, int>> *buf = new std::vector<std::pair<std::string, int>>(counters->begin(), counters->end()); 
-	counters->clear();
-	delete counters;
-	sort(buf->begin(), buf->end(), less_second());
-	for(std::vector<std::pair<std::string, int>>::iterator i = buf->begin(); i != buf->end(); ++i)
-	{
-		fOutput << i->second << " " << i->first << '\n';
 	}
-	fOutput.close();
-	buf->clear();
-	delete buf;
+
+	wordCount* begin;
+};
+
+class MyTree
+{
+public:
+	MyTree()
+	{
+		root = new node();
+		current = root;
+	};
+	~MyTree(){/*TODO*/}
+	void processingString(char *s)
+	{
+		for (s; *s; ++s)
+		{
+			if (islatin(*s))
+			{
+				this->insert(*s);
+			}
+			else
+			{
+				this->endWord();
+			}
+		}
+		this->endWord();
+	}
+	void insert(char c)
+	{
+		int i = index(c);
+		if (current->childs[i] == NULL) current->childs[i] = new node();
+		current = current->childs[i];
+	};
+	void endWord()
+	{
+		++(current->count);
+		current = root;
+	};
+	void convertToList(MyList* list)
+	{
+		char* buf = new char[MAX_SIZE]{'\0'};
+		current = root;
+		_convertToList(root, list, buf, 0);
+		delete buf;
+	}
+private:
+	struct node
+	{
+		int count;
+		node** childs;
+		node() :count(0), childs(new node*[26]{NULL}){};
+	};
+	node* root;
+	node* current;
+	void _convertToList(node* current, MyList* list, char *prefix, int prefLength)
+	{
+		for (int i = 0; i < 26; ++i)
+		{
+			if (current->childs[i] == NULL) continue;
+			prefix[prefLength++] = letter(i);
+			if (current->childs[i]->count)
+			{
+				list->insert(current->childs[i]->count, prefix);
+			}
+			_convertToList(current->childs[i], list, prefix, prefLength);
+			prefix[prefLength--] = '\0';
+		}
+	}
+};
+
+int main()
+{
+	MyTree *tree = new MyTree();
+	char *b = new char[MAX_SIZE];
+	cin.getline(b, MAX_SIZE);
+	tree->processingString(b);
+	MyList *list = new MyList();
+	tree->convertToList(list);
+	delete tree;
+	list->printList();
+	delete list;
+	system("pause");
 	return 0;
 }
